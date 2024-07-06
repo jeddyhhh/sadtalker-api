@@ -1,3 +1,9 @@
+For use with totally-real-news-bot
+https://github.com/jeddyhhh/totally-real-news-bot
+
+Modified to save files locally rather than to AWS storage, installs and works the same other than that. 
+Just follow the installation below and it should work 
+
 Thanks to Phạm Gia Linh, [source peoject](https://gitlab.com/phamgialinhlx/sad-talker-api)
 
 # How to run
