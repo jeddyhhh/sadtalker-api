@@ -22,55 +22,56 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-AWS_ACCESS_KEY= os.getenv("AWS_ACCESS_KEY")
-AWS_SECRET_KEY= os.getenv("AWS_SECRET_KEY")
-AWS_S3_REGION= os.getenv("AWS_S3_REGION")
-AWS_S3_BUCKET_NAME= os.getenv("AWS_S3_BUCKET_NAME")
+# AWS_ACCESS_KEY= os.getenv("AWS_ACCESS_KEY")
+# AWS_SECRET_KEY= os.getenv("AWS_SECRET_KEY")
+# AWS_S3_REGION= os.getenv("AWS_S3_REGION")
+# AWS_S3_BUCKET_NAME= os.getenv("AWS_S3_BUCKET_NAME")
 
-def download_file(image_url, save_dir):
-    try:
-        response = requests.get(image_url)
-        response.raise_for_status()  # Raise an exception if the request was not successful
-        with open(save_dir + "/" + image_url.split('/')[-1], "wb") as f:
-            f.write(response.content)
-        print(image_url.split('/')[-1], " downloaded and saved successfully.")
-    except requests.exceptions.RequestException as e:
-        print(f"Error downloading the image: {e}")
+# def download_file(image_url, save_dir):
+#     try:
+#         response = requests.get(image_url)
+#         response.raise_for_status()  # Raise an exception if the request was not successful
+#         with open(save_dir + "/" + image_url.split('/')[-1], "wb") as f:
+#             f.write(response.content)
+#         print(image_url.split('/')[-1], " downloaded and saved successfully.")
+#     except requests.exceptions.RequestException as e:
+#         print(f"Error downloading the image: {e}")
 
-def upload_file_aws(file_name, object_name):
-    """Upload a file to an S3 bucket
+# def upload_file_aws(file_name, object_name):
+#     """Upload a file to an S3 bucket
 
-    :param file_name: File to upload
-    :param bucket: Bucket to upload to
-    :param object_name: S3 object name. If not specified then file_name is used
-    :return: True if file was uploaded, else False
-    """
+#     :param file_name: File to upload
+#     :param bucket: Bucket to upload to
+#     :param object_name: S3 object name. If not specified then file_name is used
+#     :return: True if file was uploaded, else False
+#     """
 
 
-    # Upload the file
-    s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY,
-                    aws_secret_access_key=AWS_SECRET_KEY,
-                    region_name=AWS_S3_REGION)
+#     # Upload the file
+#     s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY,
+#                     aws_secret_access_key=AWS_SECRET_KEY,
+#                     region_name=AWS_S3_REGION)
     
-    extra_args = {
-        'ContentType': 'video/mp4',
-        'ACL': 'public-read',  # Add ACL information here
-    }
+#     extra_args = {
+#         'ContentType': 'video/mp4',
+#         'ACL': 'public-read',  # Add ACL information here
+#     }
 
-    try:
-        response = s3_client.upload_file(file_name, AWS_S3_BUCKET_NAME, object_name, ExtraArgs=extra_args)
-        print(f'File "{object_name}" successfully uploaded to S3 bucket "{AWS_S3_BUCKET_NAME}" with object key "{object_name}"')
-    except ClientError as e:
-        logging.error(e)
-        return False
-    return True
+#     try:
+#         response = s3_client.upload_file(file_name, AWS_S3_BUCKET_NAME, object_name, ExtraArgs=extra_args)
+#         print(f'File "{object_name}" successfully uploaded to S3 bucket "{AWS_S3_BUCKET_NAME}" with object key "{object_name}"')
+#     except ClientError as e:
+#         logging.error(e)
+#         return False
+#     return True
 
 app = FastAPI()
 
 class Item(BaseModel):
     image_link: str
     audio_link: str
-    s3_object_path: str = 'uploads/avatar/'
+    video_output_path: str
+    #s3_object_path: str = 'uploads/avatar/'
 # https://s3.us-west-1.amazonaws.com/dev.talktent/uploads/audio/d07VqU6UPC.mp3
 # In-memory list to store the items (for demonstration purposes)
 
@@ -85,13 +86,18 @@ async def sadtalker_create(item: Item):
 
     # PIC_PATH = "/mnt/work/Code/SadTalker/examples/source_image/art_0.png"
     RESULT_DIR = "./results"
-    save_dir = os.path.join(RESULT_DIR, strftime("%Y_%m_%d_%H.%M.%S"))
+    #save_dir = os.path.join(RESULT_DIR, strftime("%Y_%m_%d_%H.%M.%S"))
+    save_dir = item.video_output_path
     os.makedirs(save_dir, exist_ok=True)
-    download_file(item.image_link, save_dir)
-    download_file(item.audio_link, save_dir)
-    PIC_PATH = os.path.join(save_dir, item.image_link.split('/')[-1])
+    #download_file(item.image_link, save_dir)
+    #download_file(item.audio_link, save_dir)
+    audio_input_file = item.audio_link
+    image_input_file = item.image_link
+    #PIC_PATH = os.path.join(save_dir, item.image_link.split('/')[-1])
+    PIC_PATH = image_input_file
     # AUDIO_PATH = "/mnt/work/Code/SadTalker/examples/driven_audio/chinese_poem1.wav"
-    AUDIO_PATH = os.path.join(save_dir, item.audio_link.split('/')[-1])
+    #AUDIO_PATH = os.path.join(save_dir, item.audio_link.split('/')[-1])
+    AUDIO_PATH = audio_input_file
     POSE_STYLE = 0
     if torch.cuda.is_available():
         DEVICE = "cuda"
@@ -105,7 +111,7 @@ async def sadtalker_create(item: Item):
     REF_POSE = None
     CHECKPOINT_DIR = "./checkpoints"
     OLD_VERSION = False
-    PREPROCESS = "full"
+    PREPROCESS = "crop"
     EXPRESSION_SCALE = 1.0
     STILL = True
     SIZE = 256
@@ -193,10 +199,10 @@ async def sadtalker_create(item: Item):
     file_path = save_dir + '.mp4'
     print(file_path)
     print(os.path.exists(file_path))
-    if item.s3_object_path[-1] != '/':
-        item.s3_object_path += '/'
-    object_name = item.s3_object_path + os.path.basename(file_path)
-    upload_file_aws(file_path, object_name)
-    s3_url = f'https://{AWS_S3_BUCKET_NAME}.s3.{AWS_S3_REGION}.amazonaws.com/{object_name}'
-    os.remove(file_path)
-    return s3_url
+    #if item.s3_object_path[-1] != '/':
+    #    item.s3_object_path += '/'
+    #object_name = item.s3_object_path + os.path.basename(file_path)
+    #upload_file_aws(file_path, object_name)
+    #s3_url = f'https://{AWS_S3_BUCKET_NAME}.s3.{AWS_S3_REGION}.amazonaws.com/{object_name}'
+    #os.remove(file_path)
+    #return s3_url
